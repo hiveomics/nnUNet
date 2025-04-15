@@ -83,6 +83,9 @@ class nnUNetPredictor(object):
             f = int(f) if f != 'all' else f
             checkpoint = torch.load(join(model_training_output_dir, f'fold_{f}', checkpoint_name),
                                     map_location=torch.device('cpu'))
+            if 'clearml_task' in checkpoint['init_args'].keys():
+                checkpoint['init_args']['clearml_task'].close()
+
             if i == 0:
                 trainer_name = checkpoint['trainer_name']
                 configuration_name = checkpoint['init_args']['configuration']

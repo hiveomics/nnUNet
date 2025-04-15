@@ -36,7 +36,7 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
     # apply_inference_nonlin will convert to torch
     predicted_probabilities = label_manager.apply_inference_nonlin(predicted_logits)
     del predicted_logits
-    segmentation = label_manager.convert_probabilities_to_segmentation(predicted_probabilities)
+    segmentation = label_manager.convert_probabilities_to_segmentation(predicted_probabilities, plans_manager)
 
     # segmentation may be torch.Tensor but we continue with numpy
     if isinstance(segmentation, torch.Tensor):

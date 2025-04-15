@@ -7,7 +7,7 @@ import warnings
 from copy import deepcopy
 from datetime import datetime
 from time import time, sleep
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, Optional
 
 import numpy as np
 import torch
@@ -68,10 +68,12 @@ from nnunetv2.utilities.helpers import empty_cache, dummy_context
 from nnunetv2.utilities.label_handling.label_handling import convert_labelmap_to_one_hot, determine_num_input_channels
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 
+from clearml import Task
+
 
 class nnUNetTrainer(object):
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict, unpack_dataset: bool = True,
-                 device: torch.device = torch.device('cuda')):
+                 device: torch.device = torch.device('cuda'), clearml_task: Optional[Task] = None):
         # From https://grugbrain.dev/. Worth a read ya big brains ;-)
 
         # apex predator of grug is complexity
@@ -111,7 +113,8 @@ class nnUNetTrainer(object):
         # need. So let's save the init args
         self.my_init_kwargs = {}
         for k in inspect.signature(self.__init__).parameters.keys():
-            self.my_init_kwargs[k] = locals()[k]
+            if k != 'clearml_task':  # no need to save the clearml session inside the checkpoint
+                self.my_init_kwargs[k] = locals()[k]
 
         ###  Saving all the init args into class variables for later access
         self.plans_manager = PlansManager(plans)
@@ -193,6 +196,10 @@ class nnUNetTrainer(object):
         self._set_batch_size_and_oversample()
 
         self.was_initialized = False
+
+        self.clearml_task = clearml_task
+        if self.clearml_task is not None:
+            self.clearml_logger = self.clearml_task.get_logger()
 
         self.print_to_log_file("\n#######################################################################\n"
                                "Please cite the following paper when using nnU-Net:\n"
@@ -1135,6 +1142,14 @@ class nnUNetTrainer(object):
         self.print_to_log_file(
             f"Epoch time: {np.round(self.logger.my_fantastic_logging['epoch_end_timestamps'][-1] - self.logger.my_fantastic_logging['epoch_start_timestamps'][-1], decimals=2)} s")
 
+        if self.clearml_task is not None:
+            self.clearml_logger.report_scalar('Loss', 'train', self.logger.my_fantastic_logging['train_losses'][-1],
+                                              self.current_epoch)
+            self.clearml_logger.report_scalar('Loss', 'val', self.logger.my_fantastic_logging['val_losses'][-1],
+                                              self.current_epoch)
+            self.clearml_logger.report_scalar('Performance', 'ema_fg_dice', self.logger.my_fantastic_logging['ema_fg_dice'][-1],
+                                              self.current_epoch)
+
         # handling periodic checkpointing
         current_epoch = self.current_epoch
         if (current_epoch + 1) % self.save_every == 0 and current_epoch != (self.num_epochs - 1):
@@ -1173,6 +1188,9 @@ class nnUNetTrainer(object):
                     'inference_allowed_mirroring_axes': self.inference_allowed_mirroring_axes,
                 }
                 torch.save(checkpoint, filename)
+
+                if self.clearml_task is not None:
+                    self.clearml_task.upload_artifact('trained_model', artifact_object=filename)
             else:
                 self.print_to_log_file('No checkpoint written, checkpointing is disabled')
 
