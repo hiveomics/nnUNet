@@ -140,8 +140,8 @@ class LabelManager(object):
 
         return probabilities
 
-    def convert_probabilities_to_segmentation(self, predicted_probabilities: Union[np.ndarray, torch.Tensor]) -> \
-            Union[np.ndarray, torch.Tensor]:
+    def convert_probabilities_to_segmentation(self, predicted_probabilities: Union[np.ndarray, torch.Tensor],
+                                              plans_manager: PlansManager) -> Union[np.ndarray, torch.Tensor]:
         """
         assumes that inference_nonlinearity was already applied!
 
